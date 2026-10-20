@@ -1,0 +1,19 @@
+# Run the Vigil agent on any Docker host:  VIGIL_TOKEN=vgs_... docker compose up -d
+services:
+  vigil-agent:
+    image: ghcr.io/puzaricloud/vigil-agent:1.5   # or build: .. to build from this repo
+    restart: unless-stopped
+    network_mode: host   # host network counters, listening ports, real hostname
+    pid: host            # host processes and services
+    cap_add: [NET_RAW, SYS_PTRACE, DAC_READ_SEARCH]
+    environment:
+      - VIGIL_TOKEN=${VIGIL_TOKEN:?set VIGIL_TOKEN to the vgs_... token from Vigil > Servers > Add server}
+      - VIGIL_URL=${VIGIL_URL:-https://puzaricloud.in}
+      - VIGIL_NAME=${VIGIL_NAME:-}
+    volumes:
+      - /:/host:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - vigil-agent-state:/var/lib/vigil-agent
+
+volumes:
+  vigil-agent-state: {}

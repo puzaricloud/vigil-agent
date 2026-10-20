@@ -1,0 +1,37 @@
+# ignore: true
+# Example only, not a one-click template ("ignore: true" keeps Coolify's generator from listing it).
+# A dead man's switch for a Coolify server: this container calls a heartbeat URL every minute. When the server,
+# Docker or the network dies, the calls stop and the outside service alerts you. Works with any heartbeat-style
+# monitor that accepts a plain GET: Vigil (https://puzaricloud.in/ping/<token>), Healthchecks.io
+# (https://hc-ping.com/<uuid>), Uptime Kuma push monitors, Better Stack heartbeats, etc.
+#
+# Deploy in Coolify: + New > Docker Compose Empty, paste this file, set HEARTBEAT_URL, deploy.
+# Set the monitor's period to 1 minute and its grace to 2-3 minutes.
+#
+# To watch one app instead of the whole box, add the same service next to that app in its compose file and point
+# CHECK_URL at the app's internal health endpoint (for example http://app:3000/health). The heartbeat is then
+# sent only while that endpoint answers, and <HEARTBEAT_URL>/fail is sent when it doesn't (Vigil and Healthchecks.io
+# both treat /fail as an immediate failure; with other services leave CHECK_URL empty).
+
+services:
+  heartbeat:
+    image: 'curlimages/curl:8.23.0'
+    environment:
+      - 'HEARTBEAT_URL=${HEARTBEAT_URL:?}' # e.g. https://puzaricloud.in/ping/<token>
+      - 'CHECK_URL=${CHECK_URL}' # optional internal health URL, e.g. http://app:3000/health
+      - 'INTERVAL=${INTERVAL:-60}' # seconds between pings
+    entrypoint:
+      - /bin/sh
+      - '-c'
+    command:
+      - |
+        echo "heartbeat: every $${INTERVAL}s"
+        while true; do
+          if [ -z "$${CHECK_URL}" ] || curl -fsS -m 10 -o /dev/null "$${CHECK_URL}"; then
+            curl -fsS -m 10 --retry 3 -o /dev/null "$${HEARTBEAT_URL}" || echo "heartbeat: ping failed"
+          else
+            echo "heartbeat: $${CHECK_URL} is not healthy, reporting failure"
+            curl -fsS -m 10 --retry 3 -o /dev/null "$${HEARTBEAT_URL%/}/fail" || echo "heartbeat: fail ping failed"
+          fi
+          sleep "$${INTERVAL}"
+        done
